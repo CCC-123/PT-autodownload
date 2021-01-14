@@ -91,18 +91,20 @@ tc = transmissionrpc.Client(address='127.0.0.1', port=9091)
 freeSize = diskSize  
 
 while True:
+    browser.refresh()
     sourceList = browser.find_elements_by_class_name('free_bg')
     for source in sourceList:
         sourceName = source.find_element_by_xpath( "./td[2]/table/tbody/tr/td[1]/a").get_attribute('title')
         if sourceName not in history:
             #判定空间           
             tmpSeed = Seed(sourceName)
-            size =  freeSeed.find_element_by_xpath( "./td[5]").text.split('\n')[0]
+            size =  source.find_element_by_xpath( "./td[5]").text.split('\n')
+            print(size)
             if size[1] == 'GB':
                 tmpSeed.size = float(size[0]) 
             if size[1] == 'MB':
                 tmpSeed.size = float(size[0]) / 1000    
-            history.append(tmpSeed)
+            history.append(sourceName)
             if(tmpSeed.size > diskSize):
                 continue  #放不下
             FIFO(tmpSeed)
