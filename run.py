@@ -21,6 +21,7 @@ searchCycle = 3600 #seconds
 downloadWaitTime = 60 #seconds
 
 downloadPath = os.path.join(os.getcwd(), 'download')
+torrentDownloadPath = os.path.join(os.getcwd(), 'torrent')
 history = []
 state = []
 freeSize = diskSize  
@@ -53,7 +54,9 @@ def init():
 
     if not os.path.exists(downloadPath):
         os.makedirs(downloadPath)
-    prefs = {'profile.default_content_settings.popups': 0, 'download.default_directory':  downloadPath}
+    if not os.path.exists(torrentDownloadPath):
+        os.makedirs(torrentDownloadPath)
+    prefs = {'profile.default_content_settings.popups': 0, 'download.default_directory':  torrentDownloadPath}
     chrome_options.add_experimental_option('prefs', prefs)
     browser = webdriver.Chrome(chrome_options=chrome_options)
     browser.get(req_url)
@@ -127,8 +130,8 @@ if __name__ == '__main__':
                     print('Download \n', sourceName)
                     source.find_element_by_xpath( "./td[2]/table/tbody/tr/td[3]/a[1]").click()
                     cwd = os.getcwd()
-                    latestFile = getLatestFileName(downloadWaitTime, downloadPath)  #wait time
-                    tc.add_torrent(torrent = os.path.join(downloadPath, latestFile), download_dir = os.path.join(downloadPath, tmpSeed.savepath))
+                    latestFile = getLatestFileName(downloadWaitTime, torrentDownloadPath)  #wait time
+                    tc.add_torrent(torrent = os.path.join(torrentDownloadPath, latestFile), download_dir = os.path.join(downloadPath, tmpSeed.savepath))
         except Exception as e:
             print('Error:', e)
         time.sleep(searchCycle)
