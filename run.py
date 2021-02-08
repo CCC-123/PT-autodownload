@@ -8,12 +8,12 @@ import transmissionrpc
 import time
 
 import yaml
-
+import traceback
 #settings
 #=========================================================
 mode = 'test'
 #mode = 'work'
-diskSize = 150 #GB
+diskSize = 100 #GB
 
 #TODO:strategy
 
@@ -31,34 +31,50 @@ def getLatestFileName(waitTime, path):
     time.sleep(waitTime)
     lists = os.listdir(path)	
     lists.sort(key=lambda fn: os.path.getmtime(path+'/' + fn))	
-    print 'new file is : ' + lists[-1]	
+    #print 'new file is : ' + lists[-1]	
     return lists[-1]
 
 def FIFO(source):
+    print("===============================FIFO======================")
+    global freeSize
+    print("freesize: {}".format(freeSize))
+    print("download size: {}".format(source.size))
     while(len(state)):
         if(freeSize > source.size):
             break 
         oldSource = state.pop(0)
         path = os.path.join(downloadPath, oldSource.savepath)
         shutil.rmtree(path) 
-        global freeSize
         freeSize += oldSource.size 
+        print("delete files {}, now freesize {}".format(path, freeSize))
+    print("=========================================================")
 
-    state.append(source)
 
 def init():
     req_url = "https://pt.sjtu.edu.cn"
     chrome_options=Options()
     if not mode == 'test':
         chrome_options.add_argument('--headless')
+    chrome_options.add_argument('--headless')
 
     if not os.path.exists(downloadPath):
         os.makedirs(downloadPath)
     if not os.path.exists(torrentDownloadPath):
         os.makedirs(torrentDownloadPath)
-    prefs = {'profile.default_content_settings.popups': 0, 'download.default_directory':  torrentDownloadPath}
+    prefs = {'profile.default_content_settings.popups': 0, 
+            'download.default_directory':  torrentDownloadPath}
     chrome_options.add_experimental_option('prefs', prefs)
     browser = webdriver.Chrome(chrome_options=chrome_options)
+
+    #headless mode
+    browser.command_executor._commands["send_command"] = ("POST", '/session/$sessionId/chromium/send_command')
+    params = {'cmd': 'Page.setDownloadBehavior', 'params': {'behavior': 'allow', 'downloadPath': torrentDownloadPath}}
+    command_result = browser.execute("send_command", params)
+    print("response from browser:")
+    for key in command_result:
+        print("result:" + key + ":" + str(command_result[key]))
+
+
     browser.get(req_url)
     return browser
 
@@ -105,10 +121,14 @@ if __name__ == '__main__':
     recordHistory(browser)
     tc = transmissionrpc.Client(address='127.0.0.1', port=9091)
     
-
+    cnt = 0
     while True:
         try:
+            cnt += 1
+            print("Cycle {}".format(cnt))
             browser.refresh()
+            time.sleep(60)
+            #try
             sourceList = browser.find_elements_by_class_name('free_bg')
             for source in sourceList:
                 sourceName = source.find_element_by_xpath( "./td[2]/table/tbody/tr/td[1]/a").get_attribute('title')
@@ -116,7 +136,7 @@ if __name__ == '__main__':
                     #判定空间           
                     tmpSeed = Seed(sourceName)
                     size =  source.find_element_by_xpath( "./td[5]").text.split('\n')
-                    print(size)
+                    #print(size)
                     if size[1] == 'GB':
                         tmpSeed.size = float(size[0]) 
                     if size[1] == 'MB':
@@ -127,13 +147,18 @@ if __name__ == '__main__':
                     FIFO(tmpSeed)
 
                     #开始下载种子
-                    print('Download \n', sourceName)
-                    source.find_element_by_xpath( "./td[2]/table/tbody/tr/td[3]/a[1]").click()
+                    print('Download torrent: {}'.format(sourceName.encode('utf-8')))
+                    dlBtn = source.find_element_by_xpath( "./td[2]/table/tbody/tr/td[3]/a[1]")
+                    dlBtn.click()
                     cwd = os.getcwd()
                     latestFile = getLatestFileName(downloadWaitTime, torrentDownloadPath)  #wait time
                     tc.add_torrent(torrent = os.path.join(torrentDownloadPath, latestFile), download_dir = os.path.join(downloadPath, tmpSeed.savepath))
+                    print("trying download file: {}".format( tmpSeed.savepath))
+                    freeSize -= tmpSeed.size #fixbugs
+                    state.append(tmpSeed)
         except Exception as e:
             print('Error:', e)
+            traceback.print_exc()
         time.sleep(searchCycle)
 
     browser.close()
